@@ -1,35 +1,10 @@
 #include "CDem.h"
 
-//CDem::CDem(const CDem& source)
-//{
-//	resolution = source.resolution;
-//	rows = source.rows;
-//	cols = source.cols;
-//	x_min = source.x_min;
-//	y_min = source.y_min;
-//	m_pDem = new double[rows * cols];
-//	memcpy_s(m_pDem, rows * cols * sizeof(double), source.m_pDem, rows * cols * sizeof(double));
-//}
-
 CDem::~CDem()
 {
 	delete[] m_pDem;
 	m_pDem = nullptr;
 }
-
-//void CDem::operator=(CDem& source)
-//{
-//	resolution = source.resolution;
-//	rows = source.rows;
-//	cols = source.cols;
-//	x_min = source.x_min;
-//	y_min = source.y_min;
-//	if (!m_pDem) {
-//		delete[] m_pDem;
-//	}
-//	m_pDem = new double[rows * cols];
-//	memcpy_s(m_pDem, rows * cols * sizeof(double), source.m_pDem, rows * cols * sizeof(double));
-//}
 
 void CDem::set_config(const double& lf_resolution, const size_t& n_rows, const size_t& n_cols, const double& lf_minX, const double& lf_minY)
 {
@@ -61,9 +36,7 @@ void CDem::save(std::string filePath)
 	fout.setf(fout.fixed);
 	fout.fill(' ');
 	fout.precision(6);
-	// 开始写数据
-// 文件头
-//fout.width(9);
+	// 文件头
 	fout << std::setw(9) << x_min << " " << y_min << " ";
 	fout.setf(fout.right);
 	fout << 0.0 << " " << resolution << " " << resolution << " " << cols << " " << rows << std::endl;

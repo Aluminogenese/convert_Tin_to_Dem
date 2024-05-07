@@ -8,24 +8,19 @@ void CTin2Dem::initDem(CDem& c_dem, const CTin& c_tin, const double& lf_resoluti
 
 void CTin2Dem::convert2Dem(CDem& c_dem, CTin& c_tin)
 {
-    //if (!m_isDemInit) return;
     CTriangle3d* pTriangles = c_tin.m_vTriangles.data();
     size_t nTriangles = c_tin.m_vTriangles.size();
     // 对每个三角形进行内插
-#ifdef _DEBUG
     size_t dem_hit_times = 0;
     size_t dem_test_times = 0;
     size_t triangle_test_times = 0;
     size_t triangle_hit_times = 0;
-#endif // _DEBUG
-    for (size_t iTriangle = 0; iTriangle < nTriangles; iTriangle++)
+#pragma omp parallel for reduction(+:dem_hit_times, dem_test_times, triangle_test_times, triangle_hit_times)
+    for (int iTriangle = 0; iTriangle < nTriangles; iTriangle++)
     {
-#ifdef _DEBUG
         triangle_test_times++;
-#endif // _DEBUG
-        // ************************
-        // 计算三角形所在的区域参数
-        // ************************
+
+        // 计算三角形所在区域
         CTriangle3d* triangle = pTriangles + iTriangle;
         Eigen::Vector3d* triNodes = triangle->nodes;
         double tri_node_range[] = {
@@ -49,10 +44,8 @@ void CTin2Dem::convert2Dem(CDem& c_dem, CTin& c_tin)
             offset[3] - offset[2] + 1
         };
 
-        // **************************
         // 拟合三角形三条边的方程
-        // 生成三角形三个点的其次坐标
-        // **************************
+        // 生成三角形三个点的齐次坐标
         Eigen::Vector3d nodes_h[] = {
             Eigen::Vector3d(triNodes[0].x(), triNodes[0].y(), 1.0),
             Eigen::Vector3d(triNodes[1].x(), triNodes[1].y(), 1.0),
@@ -64,17 +57,13 @@ void CTin2Dem::convert2Dem(CDem& c_dem, CTin& c_tin)
             nodes_h[2].cross(nodes_h[0]),
             nodes_h[0].cross(nodes_h[1])
         };
-        // ******************************
         // 对三角形范围内每一个点进行判断
-        // ******************************
         bool isHasDem = false;
         for (size_t iy = 0; iy < area_size[1]; iy++)
         {
             for (size_t ix = 0; ix < area_size[0]; ix++)
             {
-#ifdef _DEBUG
                 dem_test_times++;
-#endif // _DEBUG
                 // 当前点的齐次坐标
                 Eigen::Vector3d cur(area_start[0] + ix * c_dem.resolution, area_start[1] + iy * c_dem.resolution, 1.0);
                 // 判断当前点是否在三角形内
@@ -99,13 +88,14 @@ void CTin2Dem::convert2Dem(CDem& c_dem, CTin& c_tin)
                     Eigen::Vector3d coefficient = matA.lu().solve(cur);
                     if ((coefficient.array() > 0).all())
                     {
-#ifdef _DEBUG
                         dem_hit_times++;
-#endif // _DEBUG
                         // 内插高程值
                         double elevation = coefficient.dot(Eigen::Vector3d(triangle->nodes[0].z(), triangle->nodes[1].z(), triangle->nodes[2].z()));
                         // DEM 对象记录高程值
-                        c_dem.set_elevation(offset[0] + ix, offset[2] + iy, elevation);
+                        #pragma omp critical
+                        {
+                            c_dem.set_elevation(offset[0] + ix, offset[2] + iy, elevation);
+                        }
                         break;
                     }
                 }
@@ -114,19 +104,18 @@ void CTin2Dem::convert2Dem(CDem& c_dem, CTin& c_tin)
                 }
             }
         }
-#ifdef _DEBUG
-        if (isHasDem) triangle_hit_times++;
+        if (isHasDem) {
+            #pragma omp atomic
+            triangle_hit_times++;
+        }
         else
         {
             std::cout << "三角形" << iTriangle << "中没有DEM点" << std::endl;
         }
-#endif // _DEBUG
     }
-#ifdef _DEBUG
     std::cout << "测试的三角形数目：     " << triangle_test_times << std::endl;
     std::cout << "含有DEM点的三角行数目：" << triangle_hit_times << std::endl;
     std::cout << "总的DEM点的数目：      " << c_dem.rows * c_dem.cols << std::endl;
     std::cout << "测试的DEM点的数目：    " << dem_test_times << std::endl;
     std::cout << "命中的DEM点的数目：    " << dem_hit_times << std::endl;
-#endif // _DEBUG
 }
